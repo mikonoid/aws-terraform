@@ -213,6 +213,12 @@ resource "aws_key_pair" "auth" {
 
 # RDS
 
+resource "random_password" "password" {
+  length = 12
+  special = true
+  override_special = "_%@"
+}
+
 resource "aws_db_instance" "db" {
   allocated_storage      = 10
   engine                 = "mysql"
@@ -220,7 +226,7 @@ resource "aws_db_instance" "db" {
   instance_class         = "${var.db_instance_class}"
   name                   = "${var.dbname}"
   username               = "${var.dbuser}"
-  password               = "${var.dbpassword}"
+  password               = "${random_password.password.result}"
   db_subnet_group_name   = "${aws_db_subnet_group.rds_subnetgroup.name}"
   vpc_security_group_ids = ["${aws_security_group.RDS.id}"]
   skip_final_snapshot    = true
@@ -254,6 +260,26 @@ EOD
     command = "aws ec2 wait instance-status-ok --instance-ids ${aws_instance.dev.id} --profile default  && ansible-playbook -vvv --ssh-common-args='-o StrictHostKeyChecking=no' --private-key ~/.ssh/id_rsa -i aws_hosts bootstrap.yml"
   }
 
+  provisioner "file" {
+    source      = "deploy.sh"
+    destination = "/tmp/deploy.sh"
+
+    connection {
+      user     = "ec2-user"
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/deploy.sh",
+      "/tmp/deploy.sh ${aws_db_instance.db.address} ${var.dbuser} ${random_password.password.result}",
+    ]
+
+    connection {
+      user     = "ec2-user"
+    }
+
+}
 
 }
 
@@ -268,7 +294,7 @@ output "Database Name" {
 }
 
 output "Database Hostname" {
-  value = "${aws_db_instance.db.endpoint}"
+  value = "${aws_db_instance.db.address}"
 }
 
 output "Database Username" {
@@ -276,5 +302,5 @@ output "Database Username" {
 }
 
 output "Database Password" {
-  value = "${var.dbpassword}"
+  value = "${random_password.password.result}"
 }
