@@ -21,15 +21,31 @@
       - mysql
 
 
-    # - name: Copy script for deploy
-    #   copy:
-    #     src: deploy.sh
-    #     dest: /tmp/deploy.sh
-    #     owner: ec2-user
-    #     group: ec2-user
-    #     mode: 0755
-    #     backup: yes
+    - name: Copy sql db
+      copy:
+        src: todo.sql
+        dest: /tmp/todo.sql
+        owner: ec2-user
+        group: ec2-user
+        mode: 0755
+        backup: yes
 
+    - name: Create DB and table
+      shell: "mysql --host={{ MYSQL_HOST }} --user={{ MYSQL_USER }} --password={{ MYSQL_PASS }} < '/tmp/todo.sql'"
 
-#    - include_tasks: nginx.yml
-#    - include_tasks: services.yml
+    - name: Clone git repo
+      git:
+        repo: https://github.com/mikonoid/todo-flask-app.git
+        dest: /home/ec2-user/todo-flask-app/
+        update: no
+
+    - name: Prepare config app
+      shell: 'cd /home/ec2-user/todo-flask-app/ && sed -i "s/root/{{ MYSQL_USER }}/g" config.py &&
+      sed -i "s/password/{{ MYSQL_PASS }}/g" config.py &&
+      sed -i "s/localhost/{{ MYSQL_HOST }}/g" config.py'
+
+    - name: Install python packages
+      shell: "pip3 install flask mysql-connector flask_sqlalchemy"
+
+    - name: Start Flask with app
+      shell: "(export FLASK_APP=/home/ec2-user/todo-flask-app/app.py; export FLASK_DEBUG=1; python3 -m flask run --host=0.0.0.0 --port=80 >/dev/null 2>&1 &)"
