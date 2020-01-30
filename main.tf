@@ -257,29 +257,11 @@ EOD
   }
 
   provisioner "local-exec" {
-    command = "aws ec2 wait instance-status-ok --instance-ids ${aws_instance.dev.id} --profile default  && ansible-playbook -vvv --ssh-common-args='-o StrictHostKeyChecking=no' --private-key ~/.ssh/id_rsa -i aws_hosts bootstrap.yml"
+    command = <<EOF
+    aws ec2 wait instance-status-ok --instance-ids ${aws_instance.dev.id} --profile default  &&
+    ansible-playbook -vvv --private-key ~/.ssh/id_rsa -i aws_hosts bootstrap.yml -e "MYSQL_HOST=${aws_db_instance.db.address} MYSQL_USER=${var.dbuser} MYSQL_PASS=${random_password.password.result}"
+  EOF
   }
-
-  provisioner "file" {
-    source      = "deploy.sh"
-    destination = "/tmp/deploy.sh"
-
-    connection {
-      user     = "ec2-user"
-    }
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/deploy.sh",
-      "/tmp/deploy.sh ${aws_db_instance.db.address} ${var.dbuser} ${random_password.password.result}",
-    ]
-
-    connection {
-      user     = "ec2-user"
-    }
-
-}
 
 }
 
