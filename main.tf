@@ -187,21 +187,6 @@ resource "aws_security_group" "private_sg" {
   }
 }
 
-#RDS Security Group
-resource "aws_security_group" "RDS" {
-  name        = "sg_rds"
-  description = "Used for DB instances"
-  vpc_id      = "${aws_vpc.vpc.id}"
-
-  # SQL access from public/private security group
-
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = ["${aws_security_group.dev_sg.id}", "${aws_security_group.public_sg.id}", "${aws_security_group.private_sg.id}"]
-  }
-}
 
 #
 # key pair
@@ -213,23 +198,12 @@ resource "aws_key_pair" "auth" {
 
 # RDS
 
+##not used
+
 resource "random_password" "password" {
   length = 12
   special = true
   override_special = "_%@"
-}
-
-resource "aws_db_instance" "db" {
-  allocated_storage      = 10
-  engine                 = "mysql"
-  engine_version         = "5.7.26"
-  instance_class         = "${var.db_instance_class}"
-  name                   = "${var.dbname}"
-  username               = "${var.dbuser}"
-  password               = "${random_password.password.result}"
-  db_subnet_group_name   = "${aws_db_subnet_group.rds_subnetgroup.name}"
-  vpc_security_group_ids = ["${aws_security_group.RDS.id}"]
-  skip_final_snapshot    = true
 }
 
 
@@ -259,7 +233,7 @@ EOD
   provisioner "local-exec" {
     command = <<EOF
     aws ec2 wait instance-status-ok --instance-ids ${aws_instance.dev.id} --profile default  &&
-    ansible-playbook -vvv --private-key ~/.ssh/id_rsa -i aws_hosts bootstrap.yml -e "MYSQL_HOST=${aws_db_instance.db.address} MYSQL_USER=${var.dbuser} MYSQL_PASS=${random_password.password.result}"
+    ansible-playbook -vvv --private-key ~/.ssh/id_rsa -i aws_hosts bootstrap.yml
   EOF
   }
 
@@ -269,20 +243,4 @@ EOD
 
 output " Public Address" {
   value = "${aws_instance.dev.public_ip}"
-}
-
-output "Database Name" {
-  value = "${var.dbname}"
-}
-
-output "Database Hostname" {
-  value = "${aws_db_instance.db.address}"
-}
-
-output "Database Username" {
-  value = "${var.dbuser}"
-}
-
-output "Database Password" {
-  value = "${random_password.password.result}"
 }
